@@ -1,20 +1,19 @@
-const pool = require("./db");
+document.getElementById("btnLogin").addEventListener("click", async () => {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ success: false });
-  }
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password })
+  });
 
-  const { username, password } = req.body;
+  const data = await res.json();
 
-  const result = await pool.query(
-    "SELECT username FROM admin WHERE username=$1 AND password=$2",
-    [username, password]
-  );
-
-  if (result.rows.length > 0) {
-    res.status(200).json({ success: true, username });
+  if (data.success) {
+    localStorage.setItem("username", data.username);
+    window.location.href = "pos.html";
   } else {
-    res.status(401).json({ success: false });
+    alert("Login gagal");
   }
-}
+});
