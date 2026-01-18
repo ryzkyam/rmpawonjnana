@@ -1,11 +1,8 @@
-const { Pool } = require('pg');
+const { Pool } = require("pg");
 
-// Ambil Connection String dari Supabase (Settings > Database)
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL + "?sslmode=require",
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-  pool // Tetep export pool buat transaksi checkout
-};
+module.exports = pool;

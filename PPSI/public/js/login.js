@@ -1,19 +1,19 @@
-document.getElementById("btnLogin").addEventListener("click", async () => {
-  const username = document.getElementById("username").value.trim();
-  const password = document.getElementById("password").value.trim();
+document.getElementById("btnLogin").onclick = async () => {
+  const username = username.value.trim();
+  const password = password.value.trim();
 
-  const res = await fetch("/api/login", {
+  const r = await fetch("/api/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ username, password })
   });
 
-  const data = await res.json();
+  const d = await r.json();
 
-  if (data.success) {
-    localStorage.setItem("username", data.username);
-    window.location.href = "pos.html";
-  } else {
-    alert("Login gagal");
-  }
-});
+  if (!d.success) return alert("Login gagal");
+
+  localStorage.setItem("user", d.username);
+  location.href = d.username === "admin"
+    ? "pos.html"
+    : "reports.html";
+};
