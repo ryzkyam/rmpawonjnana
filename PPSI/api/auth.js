@@ -1,21 +1,26 @@
-const db = require("./api/server/db");
+const { login } = require("./auth.service");
 
-async function login(username, password) {
-  try {
-    // Gunakan parameterized query ($1, $2) untuk keamanan 
-    // Nama tabel disesuaikan dengan skema Supabase lo (huruf kecil: admin)
-    const result = await db.query(
-      "SELECT id_admin, username FROM admin WHERE username = $1 AND password = $2",
-      [username, password]
-    );
-
-    // Di Postgres (library 'pg'), data ada di property 'rows'
-    // Bukan 'recordset' seperti di MSSQL
-    return result.rows[0]; 
-  } catch (err) {
-    console.error("Auth Logic Error:", err);
-    return null;
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res
+      .status(405)
+      .json({ success: false, message: "Method not allowed" });
   }
-}
 
-module.exports = { login };
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: "Invalid input" });
+  }
+
+  const user = await login(username, password);
+
+  if (!user) {
+    return res.status(401).json({ success: false });
+  }
+
+  res.status(200).json({
+    success: true,
+    username: user.username,
+  });
+}

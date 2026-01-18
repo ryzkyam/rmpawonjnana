@@ -1,17 +1,33 @@
+/* ================= AUTH GUARD ================= */
+if (!localStorage.getItem("username")) {
+  window.location.href = "login.html";
+}
+
+/* ================= GLOBAL STATE ================= */
 let cart = [];
 let menuData = [];
 let selectedCategory = "all";
 let selectedPayment = "";
+let isCheckout = false;
 
-  
+/* ================= UTIL ================= */
+function escapeHTML(str = "") {
+  return str.replace(/[&<>"']/g, m =>
+    ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[m])
+  );
+}
 
 /* ================= LOAD MENU ================= */
-
 async function loadMenu() {
-  const res = await fetch("/menu");
-  const data = await res.json();
-  menuData = data;
-  renderMenu();
+  try {
+    const res = await fetch("/menu");
+    if (!res.ok) throw new Error("Gagal load menu");
+    menuData = await res.json();
+    renderMenu();
+  } catch (err) {
+    console.error(err);
+    alert("Menu gagal dimuat");
+  }
 }
 
 function setCategory(cat) {
@@ -28,9 +44,9 @@ function renderMenu() {
 
   container.innerHTML = filtered.map(item => `
     <div class="menu-item">
-      <h4>${item.nama_menu}</h4>
-      <p>Rp ${item.harga.toLocaleString()}</p>
-      <button onclick="addCart(${item.id_menu}, '${item.nama_menu}', ${item.harga})">
+      <h4>${escapeHTML(item.nama_menu)}</h4>
+      <p>Rp ${Number(item.harga).toLocaleString("id-ID")}</p>
+      <button onclick="addCart(${item.id_menu}, '${escapeHTML(item.nama_menu)}', ${item.harga})">
         Tambah
       </button>
     </div>
@@ -38,7 +54,6 @@ function renderMenu() {
 }
 
 /* ================= CART ================= */
-
 function addCart(id_menu, name, price) {
   const exist = cart.find(i => i.id_menu === id_menu);
 
@@ -63,13 +78,13 @@ function renderCart() {
 
   body.innerHTML = cart.map((item, i) => `
     <tr>
-      <td>${item.name}</td>
+      <td>${escapeHTML(item.name)}</td>
       <td>
         <button onclick="minus(${i})">-</button>
         ${item.qty}
-        <button onclick="addCart(${item.id_menu}, '${item.name}', ${item.harga})">+</button>
+        <button onclick="addCart(${item.id_menu}, '${escapeHTML(item.name)}', ${item.harga})">+</button>
       </td>
-      <td>Rp ${(item.qty * item.harga).toLocaleString()}</td>
+      <td>Rp ${(item.qty * item.harga).toLocaleString("id-ID")}</td>
     </tr>
   `).join("");
 
@@ -81,13 +96,12 @@ function calc() {
   const tax = subtotal * 0.1;
   const total = subtotal + tax;
 
-  document.getElementById("subtotal").innerText = subtotal.toLocaleString();
-  document.getElementById("tax").innerText = tax.toLocaleString();
-  document.getElementById("total").innerText = total.toLocaleString();
+  document.getElementById("subtotal").innerText = subtotal.toLocaleString("id-ID");
+  document.getElementById("tax").innerText = tax.toLocaleString("id-ID");
+  document.getElementById("total").innerText = total.toLocaleString("id-ID");
 }
 
 /* ================= PAYMENT ================= */
-
 function openPayment(type) {
   if (cart.length === 0) {
     alert("Keranjang kosong");
@@ -96,7 +110,6 @@ function openPayment(type) {
 
   selectedPayment = type;
   document.getElementById("paymentModal").classList.remove("hidden");
-
   document.getElementById("qrisBox").style.display =
     type === "QRIS" ? "block" : "none";
 }
@@ -105,7 +118,11 @@ function closePayment() {
   document.getElementById("paymentModal").classList.add("hidden");
 }
 
+/* ================= CHECKOUT ================= */
 async function checkout() {
+  if (isCheckout) return;
+  isCheckout = true;
+
   const payload = {
     metode_pembayaran: selectedPayment,
     items: cart.map(item => ({
@@ -122,6 +139,8 @@ async function checkout() {
       body: JSON.stringify(payload)
     });
 
+    if (!res.ok) throw new Error("Checkout gagal");
+
     const data = await res.json();
 
     if (data.success) {
@@ -131,70 +150,78 @@ async function checkout() {
       renderCart();
       closePayment();
     } else {
-      showPopup("Transaksi gagal!", "error");
+      showPopup("Transaksi gagal", "error");
     }
 
   } catch (err) {
     console.error(err);
     showPopup("Server error", "error");
+  } finally {
+    isCheckout = false;
   }
 }
 
-/* ================= INIT ================= */
-loadMenu();
-
-function logout() {
-  localStorage.removeItem("username");
-  window.location.href = "login.html";
-}
-
+/* ================= POPUP ================= */
 function showPopup(message, type = "info") {
   const popup = document.getElementById("popup");
-  const popupMessage = document.getElementById("popup-message");
-  popupMessage.textContent = message;
-  popupMessage.className = type; // Optional: add class for styling based on type
+  const msg = document.getElementById("popup-message");
+  msg.textContent = message;
+  msg.className = type;
   popup.style.display = "flex";
-  setTimeout(() => {
-    closePopup();
-  }, 3000); // Auto close after 3 seconds
+
+  setTimeout(closePopup, 3000);
 }
 
 function closePopup() {
-  const popup = document.getElementById("popup");
-  popup.style.display = "none";
+  document.getElementById("popup").style.display = "none";
 }
 
+/* ================= STRUK ================= */
 function printStruk(idTransaksi, cartItems) {
-  // Fill struk details
   document.getElementById("struk-id").textContent = idTransaksi;
-  document.getElementById("struk-date").textContent = new Date().toLocaleString("id-ID");
+  document.getElementById("struk-date").textContent =
+    new Date().toLocaleString("id-ID");
 
-  const strukBody = document.getElementById("struk-body");
-  strukBody.innerHTML = "";
+  const body = document.getElementById("struk-body");
+  body.innerHTML = "";
 
   let subtotal = 0;
+
   cartItems.forEach(item => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${item.nama_menu || 'Unknown'}</td>
-      <td>${item.qty}</td>
-      <td>${item.harga}</td>
-      <td>${item.qty * item.harga}</td>
+    const total = item.qty * item.harga;
+    subtotal += total;
+
+    body.innerHTML += `
+      <tr>
+        <td>${escapeHTML(item.name)}</td>
+        <td>${item.qty}</td>
+        <td>${item.harga.toLocaleString("id-ID")}</td>
+        <td>${total.toLocaleString("id-ID")}</td>
+      </tr>
     `;
-    strukBody.appendChild(row);
-    subtotal += item.qty * item.harga;
   });
 
   const ppn = subtotal * 0.1;
   const total = subtotal + ppn;
 
-  document.getElementById("struk-subtotal").textContent = subtotal.toLocaleString("id-ID");
-  document.getElementById("struk-ppn").textContent = ppn.toLocaleString("id-ID");
-  document.getElementById("struk-total").textContent = total.toLocaleString("id-ID");
+  document.getElementById("struk-subtotal").textContent =
+    subtotal.toLocaleString("id-ID");
+  document.getElementById("struk-ppn").textContent =
+    ppn.toLocaleString("id-ID");
+  document.getElementById("struk-total").textContent =
+    total.toLocaleString("id-ID");
 
-  // Show struk and print
-  const struk = document.getElementById('struk');
-  struk.style.display = 'block';
+  const struk = document.getElementById("struk");
+  struk.style.display = "block";
   window.print();
-  struk.style.display = 'none';
+  struk.style.display = "none";
 }
+
+/* ================= LOGOUT ================= */
+function logout() {
+  localStorage.removeItem("username");
+  window.location.href = "login.html";
+}
+
+/* ================= INIT ================= */
+loadMenu();
